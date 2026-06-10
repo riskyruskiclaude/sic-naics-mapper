@@ -1,10 +1,14 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export default function Home() {
   return (
     <div className="max-w-2xl">
-      <h1 className="text-3xl font-bold text-gray-900 mb-3">SIC ↔ NAICS Mapper</h1>
-      <p className="text-gray-600 mb-8 text-lg">
+      <div className="flex items-center gap-4 mb-4">
+        <Image src="/logo.png" alt="Logo" width={72} height={72} className="rounded-full shadow" />
+        <h1 className="text-3xl font-bold text-gray-900">SIC ↔ NAICS Mapper</h1>
+      </div>
+      <p className="text-gray-700 mb-8 text-lg">
         Browse Standard Industrial Classification (SIC) and North American Industry Classification System (NAICS 2022) codes, and explore AI-generated mappings between them.
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

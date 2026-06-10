@@ -12,10 +12,10 @@ const METHOD_LABELS: Record<Method, string> = {
 };
 
 const METHOD_COLORS: Record<Method, string> = {
-  census_xwalk: "bg-green-100 text-green-700",
-  census_xwalk_disambiguated: "bg-teal-100 text-teal-700",
-  ai_generated: "bg-purple-100 text-purple-700",
-  user_override: "bg-blue-100 text-blue-700",
+  census_xwalk: "bg-green-100 text-green-800 border border-green-200",
+  census_xwalk_disambiguated: "bg-teal-100 text-teal-800 border border-teal-200",
+  ai_generated: "bg-purple-100 text-purple-800 border border-purple-200",
+  user_override: "bg-blue-100 text-blue-800 border border-blue-200",
 };
 
 const NAICS_LEVEL_LABELS: Record<number, string> = {
@@ -91,9 +91,9 @@ export default function MappingRow({
   });
 
   const confidenceColor =
-    current.confidence >= 80 ? "text-green-600" :
-    current.confidence >= 50 ? "text-amber-600" :
-    "text-red-500";
+    current.confidence >= 80 ? "text-green-700 font-bold" :
+    current.confidence >= 50 ? "text-amber-700 font-bold" :
+    "text-red-600 font-bold";
 
   async function loadHistory() {
     if (history) return;
@@ -242,30 +242,30 @@ export default function MappingRow({
 
       {/* History panel */}
       {showHistory && (
-        <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">
-          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Revision History</h4>
-          {historyLoading && <p className="text-xs text-gray-400">Loading…</p>}
+        <div className="border-t border-gray-200 bg-gray-50 px-4 py-3">
+          <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3">Revision History</h4>
+          {historyLoading && <p className="text-xs text-gray-500">Loading…</p>}
           {history && history.length === 0 && (
-            <p className="text-xs text-gray-400">No revision history yet.</p>
+            <p className="text-xs text-gray-500">No revision history yet.</p>
           )}
           {history && history.length > 0 && (
             <div className="space-y-2">
               {history.map(({ revision: r, naicsTitle }) => (
-                <div key={r.id} className="flex items-start gap-3 text-xs">
-                  <span className="text-gray-400 w-36 shrink-0">
+                <div key={r.id} className="flex items-start gap-3 text-xs bg-white border border-gray-200 rounded px-3 py-2">
+                  <span className="text-gray-500 w-36 shrink-0 font-medium">
                     {new Date(r.createdAt).toLocaleString()}
                   </span>
-                  <span className={`px-1.5 py-0.5 rounded font-medium ${METHOD_COLORS[r.method]}`}>
+                  <span className={`px-1.5 py-0.5 rounded font-medium shrink-0 ${METHOD_COLORS[r.method]}`}>
                     {METHOD_LABELS[r.method]}
                   </span>
-                  <span className="font-mono text-gray-700">{r.naicsCode}</span>
-                  <span className="text-gray-600">{naicsTitle ?? ""}</span>
-                  <span className={`font-semibold ${
-                    r.confidence >= 80 ? "text-green-600" :
-                    r.confidence >= 50 ? "text-amber-600" : "text-red-500"
+                  <span className="font-mono text-gray-800 font-semibold">{r.naicsCode}</span>
+                  <span className="text-gray-700">{naicsTitle ?? ""}</span>
+                  <span className={`shrink-0 ${
+                    r.confidence >= 80 ? "text-green-700 font-bold" :
+                    r.confidence >= 50 ? "text-amber-700 font-bold" : "text-red-600 font-bold"
                   }`}>{r.confidence}%</span>
-                  {r.rationale && <span className="text-gray-400 italic">{r.rationale}</span>}
-                  <span className="text-gray-300 ml-auto">by {r.changedBy}</span>
+                  {r.rationale && <span className="text-gray-500 italic">{r.rationale}</span>}
+                  <span className="text-gray-400 ml-auto shrink-0">by {r.changedBy}</span>
                 </div>
               ))}
             </div>
