@@ -37,6 +37,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/mappings" className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors">
               Mappings
             </Link>
+            <Link href="/validation" className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors">
+              Validation
+            </Link>
           </nav>
         </header>
         <main className="max-w-7xl mx-auto px-4 py-8">

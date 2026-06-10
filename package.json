@@ -13,7 +13,9 @@
     "seed": "npx tsx scripts/seed.ts",
     "map": "npx tsx scripts/generate-mappings.ts",
     "xwalk": "npx tsx scripts/import-crosswalk.ts",
-    "disambiguate": "npx tsx scripts/disambiguate.ts"
+    "disambiguate": "npx tsx scripts/disambiguate.ts",
+    "validate": "npx tsx scripts/validate.ts",
+    "validate:medium": "npx tsx scripts/validate.ts --only-medium"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
