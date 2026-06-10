@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className="light" style={{ colorScheme: "light" }}>
       <body className={`${geist.className} bg-gray-100 min-h-screen`}>
         <header className="bg-white border-b border-gray-200 shadow-sm">
           <nav className="max-w-7xl mx-auto px-4 h-16 flex items-center gap-6">
