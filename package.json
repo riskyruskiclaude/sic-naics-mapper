@@ -12,7 +12,8 @@
     "db:push": "drizzle-kit push",
     "seed": "npx tsx scripts/seed.ts",
     "map": "npx tsx scripts/generate-mappings.ts",
-    "xwalk": "npx tsx scripts/import-crosswalk.ts"
+    "xwalk": "npx tsx scripts/import-crosswalk.ts",
+    "disambiguate": "npx tsx scripts/disambiguate.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
