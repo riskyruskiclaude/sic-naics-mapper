@@ -49,17 +49,18 @@ export default async function MappingsPage({ searchParams }: Props) {
     .orderBy(orderBy)
     .limit(200);
 
-  // Stats
-  const stats = await db
-    .select({
-      total: sql<number>`count(*)`,
-      avgConf: sql<number>`round(avg(${mappings.confidence}))`,
-      lowConf: sql<number>`count(*) filter (where ${mappings.confidence} < 50)`,
-      overrides: sql<number>`count(*) filter (where ${mappings.method} = 'user_override')`,
-    })
-    .from(mappings);
-
-  const s = stats[0];
+  // Overall stats
+  const [s] = await db.select({
+    total:     sql<number>`count(*)`,
+    unmapped:  sql<number>`(select count(*) from sic_codes) - count(*)`,
+    high:      sql<number>`count(*) filter (where ${mappings.confidence} >= 80)`,
+    mid:       sql<number>`count(*) filter (where ${mappings.confidence} >= 50 and ${mappings.confidence} < 80)`,
+    low:       sql<number>`count(*) filter (where ${mappings.confidence} < 50)`,
+    xwalk:     sql<number>`count(*) filter (where ${mappings.method} = 'census_xwalk')`,
+    xwalkAi:   sql<number>`count(*) filter (where ${mappings.method} = 'census_xwalk_disambiguated')`,
+    aiGen:     sql<number>`count(*) filter (where ${mappings.method} = 'ai_generated')`,
+    overrides: sql<number>`count(*) filter (where ${mappings.method} = 'user_override')`,
+  }).from(mappings);
 
   const allNaics = await db
     .select({ code: naicsCodes.code, title: naicsCodes.title, level: naicsCodes.level })
@@ -67,73 +68,129 @@ export default async function MappingsPage({ searchParams }: Props) {
     .where(sql`${naicsCodes.level} >= 4`)
     .orderBy(asc(naicsCodes.code));
 
+  const total = Number(s.total);
+
   return (
     <div>
-      {/* Stats bar */}
-      {s.total > 0 && (
-        <div className="grid grid-cols-4 gap-3 mb-6">
-          {[
-            { label: "Total Mapped", value: s.total },
-            { label: "Avg Confidence", value: `${s.avgConf}%` },
-            { label: "Low Confidence (<50%)", value: s.lowConf, highlight: true },
-            { label: "User Overrides", value: s.overrides },
-          ].map((stat) => (
-            <div key={stat.label} className={`bg-white border rounded-lg px-4 py-3 ${stat.highlight && Number(stat.value) > 0 ? "border-amber-300" : "border-gray-200"}`}>
-              <div className={`text-2xl font-bold ${stat.highlight && Number(stat.value) > 0 ? "text-amber-600" : "text-gray-900"}`}>
-                {stat.value}
-              </div>
-              <div className="text-xs text-gray-500 mt-0.5">{stat.label}</div>
+      {/* Stats dashboard */}
+      {total > 0 && (
+        <div className="mb-6 space-y-3">
+          {/* Top row — coverage */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-white border border-gray-200 rounded-lg px-5 py-4">
+              <div className="text-3xl font-bold text-gray-900">{total}</div>
+              <div className="text-sm text-gray-500 mt-0.5">SIC codes mapped</div>
             </div>
-          ))}
+            <div className="bg-white border border-gray-200 rounded-lg px-5 py-4">
+              <div className="text-3xl font-bold text-amber-600">{s.unmapped}</div>
+              <div className="text-sm text-gray-500 mt-0.5">Not yet mapped</div>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-lg px-5 py-4">
+              <div className="text-3xl font-bold text-gray-900">{s.overrides}</div>
+              <div className="text-sm text-gray-500 mt-0.5">User overrides</div>
+            </div>
+          </div>
+
+          {/* Confidence breakdown */}
+          <div className="bg-white border border-gray-200 rounded-lg px-5 py-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Confidence Breakdown</h3>
+            <div className="grid grid-cols-3 gap-4 mb-3">
+              <div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl font-bold text-green-700">{s.high}</span>
+                  <span className="text-sm text-green-600">({total ? Math.round(Number(s.high) / total * 100) : 0}%)</span>
+                </div>
+                <div className="text-sm text-gray-600 mt-0.5">High confidence <span className="text-gray-400">(80–100%)</span></div>
+              </div>
+              <div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl font-bold text-amber-700">{s.mid}</span>
+                  <span className="text-sm text-amber-600">({total ? Math.round(Number(s.mid) / total * 100) : 0}%)</span>
+                </div>
+                <div className="text-sm text-gray-600 mt-0.5">Medium confidence <span className="text-gray-400">(50–79%)</span></div>
+              </div>
+              <div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl font-bold text-red-600">{s.low}</span>
+                  <span className="text-sm text-red-500">({total ? Math.round(Number(s.low) / total * 100) : 0}%)</span>
+                </div>
+                <div className="text-sm text-gray-600 mt-0.5">Low confidence <span className="text-gray-400">(&lt;50%)</span></div>
+              </div>
+            </div>
+            {/* Visual bar */}
+            <div className="flex h-3 rounded-full overflow-hidden gap-px">
+              <div className="bg-green-500 transition-all" style={{ width: `${total ? Number(s.high) / total * 100 : 0}%` }} title={`High: ${s.high}`} />
+              <div className="bg-amber-400 transition-all" style={{ width: `${total ? Number(s.mid) / total * 100 : 0}%` }} title={`Mid: ${s.mid}`} />
+              <div className="bg-red-400 transition-all" style={{ width: `${total ? Number(s.low) / total * 100 : 0}%` }} title={`Low: ${s.low}`} />
+            </div>
+          </div>
+
+          {/* Method breakdown */}
+          <div className="bg-white border border-gray-200 rounded-lg px-5 py-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Mapping Method</h3>
+            <div className="grid grid-cols-4 gap-4">
+              {[
+                { label: "Census Crosswalk", value: s.xwalk, color: "text-green-700", bg: "bg-green-100 border-green-200" },
+                { label: "Crosswalk + AI", value: s.xwalkAi, color: "text-teal-700", bg: "bg-teal-100 border-teal-200" },
+                { label: "AI Generated", value: s.aiGen, color: "text-purple-700", bg: "bg-purple-100 border-purple-200" },
+                { label: "User Override", value: s.overrides, color: "text-blue-700", bg: "bg-blue-100 border-blue-200" },
+              ].map((m) => (
+                <div key={m.label} className={`border rounded-lg px-3 py-2.5 ${m.bg}`}>
+                  <div className={`text-xl font-bold ${m.color}`}>{m.value}</div>
+                  <div className={`text-xs font-medium mt-0.5 ${m.color}`}>{m.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
       {/* Filters */}
       <form className="bg-white border border-gray-200 rounded-lg p-4 mb-4 flex flex-wrap gap-3 items-end">
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Search SIC description</label>
+          <label className="block text-xs text-gray-600 font-medium mb-1">Search SIC description</label>
           <input name="q" defaultValue={q} placeholder="e.g. farming, software..." className="border border-gray-300 rounded px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <div>
-          <label className="block text-xs text-gray-500 mb-1">SIC Code</label>
+          <label className="block text-xs text-gray-600 font-medium mb-1">SIC Code</label>
           <input name="sic" defaultValue={sic} placeholder="e.g. 0111" className="border border-gray-300 rounded px-3 py-1.5 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Method</label>
+          <label className="block text-xs text-gray-600 font-medium mb-1">Method</label>
           <select name="method" defaultValue={method} className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="">All methods</option>
             {Object.entries(METHOD_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Confidence</label>
+          <label className="block text-xs text-gray-600 font-medium mb-1">Confidence range</label>
           <div className="flex items-center gap-1">
             <input name="minConf" defaultValue={minConf} placeholder="0" className="border border-gray-300 rounded px-2 py-1.5 text-sm w-16 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            <span className="text-gray-400 text-sm">–</span>
+            <span className="text-gray-500 text-sm">–</span>
             <input name="maxConf" defaultValue={maxConf} placeholder="100" className="border border-gray-300 rounded px-2 py-1.5 text-sm w-16 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
         </div>
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Sort</label>
+          <label className="block text-xs text-gray-600 font-medium mb-1">Sort</label>
           <select name="sort" defaultValue={sort} className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="sic">SIC Code</option>
             <option value="conf_asc">Confidence ↑</option>
             <option value="conf_desc">Confidence ↓</option>
           </select>
         </div>
-        <button type="submit" className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700">
+        <button type="submit" className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700 font-medium">
           Filter
         </button>
         {(q || sic || method || minConf || maxConf) && (
-          <Link href="/mappings" className="text-sm text-gray-500 hover:text-gray-700 py-1.5">
-            Clear
+          <Link href="/mappings" className="text-sm text-gray-600 hover:text-gray-800 py-1.5">
+            Clear filters
           </Link>
         )}
       </form>
 
       {rows.length === 0 ? (
-        <div className="text-center text-gray-400 py-20 bg-white border border-gray-200 rounded-lg">
-          {s.total === 0
+        <div className="text-center text-gray-500 py-20 bg-white border border-gray-200 rounded-lg">
+          {total === 0
             ? "No mappings yet. Run a mapping pass first."
             : "No mappings match your filters."}
         </div>
@@ -154,7 +211,7 @@ export default async function MappingsPage({ searchParams }: Props) {
       )}
 
       {rows.length === 200 && (
-        <p className="text-center text-gray-400 mt-4 text-sm">Showing first 200. Use filters to narrow down.</p>
+        <p className="text-center text-gray-500 mt-4 text-sm">Showing first 200. Use filters to narrow down.</p>
       )}
     </div>
   );
