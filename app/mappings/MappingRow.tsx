@@ -38,6 +38,8 @@ interface Mapping {
   confidence: number;
   method: Method;
   rationale: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 interface Revision {
@@ -168,9 +170,14 @@ export default function MappingRow({
                   <span className="text-sm text-gray-700">{current.naicsTitle}</span>
                   <span className="text-xs text-gray-400">({NAICS_LEVEL_LABELS[current.naicsLevel] ?? `${current.naicsLevel}-digit`})</span>
                 </div>
-                {current.rationale && (
-                  <p className="text-xs text-gray-400 mt-1 italic leading-snug">{current.rationale}</p>
-                )}
+                <div className="flex items-center gap-3 mt-1 flex-wrap">
+                  {current.rationale && (
+                    <p className="text-xs text-gray-400 italic leading-snug">{current.rationale}</p>
+                  )}
+                </div>
+                <p className="text-xs text-gray-300 mt-0.5">
+                  updated {new Date(mapping.updatedAt ?? mapping.createdAt).toLocaleString()}
+                </p>
               </div>
             </div>
           ) : (

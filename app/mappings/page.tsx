@@ -149,6 +149,17 @@ export default async function MappingsPage({ searchParams }: Props) {
         </div>
       )}
 
+      {/* Export */}
+      <div className="flex justify-end mb-3">
+        <a
+          href="/api/export"
+          download="sic-naics-mappings.csv"
+          className="text-sm bg-white border border-gray-300 text-gray-700 px-4 py-1.5 rounded hover:bg-gray-50 hover:border-gray-400 font-medium"
+        >
+          Export CSV
+        </a>
+      </div>
+
       {/* Filters */}
       <form className="bg-white border border-gray-200 rounded-lg p-4 mb-4 flex flex-wrap gap-3 items-end">
         <div>
