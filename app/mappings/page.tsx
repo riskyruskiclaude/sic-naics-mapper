@@ -9,7 +9,6 @@ export const revalidate = 0;
 const METHOD_LABELS: Record<string, string> = {
   census_xwalk: "Census Crosswalk",
   census_xwalk_disambiguated: "Crosswalk (AI)",
-  ai_generated: "AI Generated",
   user_override: "User Override",
 };
 
