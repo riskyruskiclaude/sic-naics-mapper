@@ -38,6 +38,7 @@ interface Mapping {
   confidence: number;
   method: Method;
   rationale: string | null;
+  xwalkFamiliesCount: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -211,11 +212,16 @@ export default function MappingRow({
 
         {/* Badges + actions */}
         <div className="shrink-0 flex flex-col items-end gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             <span className={`text-xs font-semibold ${confidenceColor}`}>{current.confidence}%</span>
             <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${METHOD_COLORS[current.method]}`}>
               {METHOD_LABELS[current.method]}
             </span>
+            {mapping.xwalkFamiliesCount != null && mapping.xwalkFamiliesCount > 1 && (
+              <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-orange-100 text-orange-700 border border-orange-200">
+                {mapping.xwalkFamiliesCount} families
+              </span>
+            )}
           </div>
 
           <div className="flex gap-1.5">

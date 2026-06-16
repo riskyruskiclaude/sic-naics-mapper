@@ -42,6 +42,7 @@ export const mappings = pgTable("mappings", {
   confidence: integer("confidence").notNull().default(0),
   method: mappingMethodEnum("method").notNull(),
   rationale: text("rationale"),
+  xwalkFamiliesCount: integer("xwalk_families_count"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (t) => [

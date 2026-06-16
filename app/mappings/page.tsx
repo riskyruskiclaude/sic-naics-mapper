@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { mappings, sicCodes, naicsCodes, mappingRevisions } from "@/db/schema";
-import { asc, desc, eq, like, sql, and, lte, gte, exists } from "drizzle-orm";
+import { asc, desc, eq, like, sql, and, lte, gte, exists, gt } from "drizzle-orm";
 import MappingRow from "./MappingRow";
 import Link from "next/link";
 
@@ -22,12 +22,13 @@ interface Props {
     maxConf?: string;
     sort?: string;
     revised?: string;
+    multifamily?: string;
   }>;
 }
 
 export default async function MappingsPage({ searchParams }: Props) {
   const params = await searchParams;
-  const { q, sic, method, minConf, maxConf, sort, revised } = params;
+  const { q, sic, method, minConf, maxConf, sort, revised, multifamily } = params;
 
   const conditions = [];
   if (sic) conditions.push(eq(mappings.sicCode, sic));
@@ -38,6 +39,7 @@ export default async function MappingsPage({ searchParams }: Props) {
   if (revised === "1") conditions.push(
     exists(db.select({ one: sql`1` }).from(mappingRevisions).where(eq(mappingRevisions.mappingId, mappings.id)))
   );
+  if (multifamily === "1") conditions.push(gt(mappings.xwalkFamiliesCount, 1));
 
   const orderBy = sort === "conf_asc" ? asc(mappings.confidence)
     : sort === "conf_desc" ? desc(mappings.confidence)
@@ -63,7 +65,9 @@ export default async function MappingsPage({ searchParams }: Props) {
     xwalk:     sql<number>`count(*) filter (where ${mappings.method} = 'census_xwalk')`,
     xwalkAi:   sql<number>`count(*) filter (where ${mappings.method} = 'census_xwalk_disambiguated')`,
     aiGen:     sql<number>`count(*) filter (where ${mappings.method} = 'ai_generated')`,
-    overrides: sql<number>`count(*) filter (where ${mappings.method} = 'user_override')`,
+    overrides:     sql<number>`count(*) filter (where ${mappings.method} = 'user_override')`,
+    multifamily:   sql<number>`count(*) filter (where ${mappings.xwalkFamiliesCount} > 1)`,
+    singlefamily:  sql<number>`count(*) filter (where ${mappings.xwalkFamiliesCount} = 1)`,
   }).from(mappings);
 
   const allNaics = await db
@@ -80,7 +84,7 @@ export default async function MappingsPage({ searchParams }: Props) {
       {total > 0 && (
         <div className="mb-6 space-y-3">
           {/* Top row — coverage */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-4 gap-3">
             <div className="bg-white border border-gray-200 rounded-lg px-5 py-4">
               <div className="text-3xl font-bold text-gray-900">{total}</div>
               <div className="text-sm text-gray-500 mt-0.5">SIC codes mapped</div>
@@ -93,6 +97,10 @@ export default async function MappingsPage({ searchParams }: Props) {
               <div className="text-3xl font-bold text-gray-900">{s.overrides}</div>
               <div className="text-sm text-gray-500 mt-0.5">User overrides</div>
             </div>
+            <Link href="/mappings?multifamily=1" className="bg-orange-50 border border-orange-200 rounded-lg px-5 py-4 hover:bg-orange-100 transition-colors">
+              <div className="text-3xl font-bold text-orange-700">{s.multifamily}</div>
+              <div className="text-sm text-orange-600 mt-0.5">Multi-family — needs review</div>
+            </Link>
           </div>
 
           {/* Confidence breakdown */}
@@ -193,23 +201,38 @@ export default async function MappingsPage({ searchParams }: Props) {
             <option value="conf_desc">Confidence ↓</option>
           </select>
         </div>
-        <div className="flex items-center gap-2 pb-0.5">
-          <input
-            type="checkbox"
-            name="revised"
-            id="revised"
-            value="1"
-            defaultChecked={revised === "1"}
-            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-          />
-          <label htmlFor="revised" className="text-sm text-gray-700 font-medium cursor-pointer">
-            Has revisions
-          </label>
+        <div className="flex flex-col gap-2 pb-0.5">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              name="revised"
+              id="revised"
+              value="1"
+              defaultChecked={revised === "1"}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <label htmlFor="revised" className="text-sm text-gray-700 font-medium cursor-pointer">
+              Has revisions
+            </label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              name="multifamily"
+              id="multifamily"
+              value="1"
+              defaultChecked={multifamily === "1"}
+              className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+            />
+            <label htmlFor="multifamily" className="text-sm text-orange-700 font-medium cursor-pointer">
+              Multi-family only
+            </label>
+          </div>
         </div>
         <button type="submit" className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700 font-medium">
           Filter
         </button>
-        {(q || sic || method || minConf || maxConf || revised) && (
+        {(q || sic || method || minConf || maxConf || revised || multifamily) && (
           <Link href="/mappings" className="text-sm text-gray-600 hover:text-gray-800 py-1.5">
             Clear filters
           </Link>
