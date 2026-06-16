@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 type Method = "census_xwalk" | "census_xwalk_disambiguated" | "ai_generated" | "user_override";
 
@@ -64,7 +64,6 @@ interface Props {
   sicDivision: string;
   currentNaicsTitle: string;
   allNaics: NaicsOption[];
-  defaultShowHistory?: boolean;
 }
 
 export default function MappingRow({
@@ -74,10 +73,9 @@ export default function MappingRow({
   sicDivision,
   currentNaicsTitle,
   allNaics,
-  defaultShowHistory = false,
 }: Props) {
   const [editing, setEditing] = useState(false);
-  const [showHistory, setShowHistory] = useState(defaultShowHistory);
+  const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<Revision[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
 
@@ -94,10 +92,6 @@ export default function MappingRow({
     method: mapping.method,
     rationale: mapping.rationale,
   });
-
-  useEffect(() => {
-    if (defaultShowHistory) loadHistory();
-  }, []);
 
   const confidenceColor =
     current.confidence >= 80 ? "text-green-700 font-bold" :

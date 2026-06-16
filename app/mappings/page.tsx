@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { mappings, sicCodes, naicsCodes, mappingRevisions } from "@/db/schema";
-import { asc, desc, eq, like, sql, and, lte, gte, exists, gt } from "drizzle-orm";
+import { mappings, sicCodes, naicsCodes } from "@/db/schema";
+import { asc, desc, eq, like, sql, and, lte, gte, gt } from "drizzle-orm";
 import MappingRow from "./MappingRow";
 import Link from "next/link";
 
@@ -21,14 +21,13 @@ interface Props {
     minConf?: string;
     maxConf?: string;
     sort?: string;
-    revised?: string;
     multifamily?: string;
   }>;
 }
 
 export default async function MappingsPage({ searchParams }: Props) {
   const params = await searchParams;
-  const { q, sic, method, minConf, maxConf, sort, revised, multifamily } = params;
+  const { q, sic, method, minConf, maxConf, sort, multifamily } = params;
 
   const conditions = [];
   if (sic) conditions.push(eq(mappings.sicCode, sic));
@@ -36,9 +35,6 @@ export default async function MappingsPage({ searchParams }: Props) {
   if (method) conditions.push(eq(mappings.method, method as any));
   if (minConf) conditions.push(gte(mappings.confidence, parseInt(minConf)));
   if (maxConf) conditions.push(lte(mappings.confidence, parseInt(maxConf)));
-  if (revised === "1") conditions.push(
-    exists(db.select({ one: sql`1` }).from(mappingRevisions).where(eq(mappingRevisions.mappingId, mappings.id)))
-  );
   if (multifamily === "1") conditions.push(gt(mappings.xwalkFamiliesCount, 1));
 
   const orderBy = sort === "conf_asc" ? asc(mappings.confidence)
@@ -201,45 +197,30 @@ export default async function MappingsPage({ searchParams }: Props) {
             <option value="conf_desc">Confidence ↓</option>
           </select>
         </div>
-        <div className="flex flex-col gap-2 pb-0.5">
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="revised"
-              id="revised"
-              value="1"
-              defaultChecked={revised === "1"}
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <label htmlFor="revised" className="text-sm text-gray-700 font-medium cursor-pointer">
-              Has revisions
-            </label>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="multifamily"
-              id="multifamily"
-              value="1"
-              defaultChecked={multifamily === "1"}
-              className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-            />
-            <label htmlFor="multifamily" className="text-sm text-orange-700 font-medium cursor-pointer">
-              Multi-family only
-            </label>
-          </div>
+        <div className="flex items-center gap-2 pb-0.5">
+          <input
+            type="checkbox"
+            name="multifamily"
+            id="multifamily"
+            value="1"
+            defaultChecked={multifamily === "1"}
+            className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+          />
+          <label htmlFor="multifamily" className="text-sm text-orange-700 font-medium cursor-pointer">
+            Multi-family only
+          </label>
         </div>
         <button type="submit" className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700 font-medium">
           Filter
         </button>
-        {(q || sic || method || minConf || maxConf || revised || multifamily) && (
+        {(q || sic || method || minConf || maxConf || multifamily) && (
           <Link href="/mappings" className="text-sm text-gray-600 hover:text-gray-800 py-1.5">
             Clear filters
           </Link>
         )}
       </form>
 
-      {(q || sic || method || minConf || maxConf || revised || multifamily) && rows.length > 0 && (
+      {(q || sic || method || minConf || maxConf || multifamily) && rows.length > 0 && (
         <p className="text-sm text-gray-500 mb-2">
           {rows.length}{rows.length === 200 ? "+" : ""} result{rows.length !== 1 ? "s" : ""}
         </p>
@@ -262,7 +243,6 @@ export default async function MappingsPage({ searchParams }: Props) {
               sicDivision={s?.divisionTitle ?? ""}
               currentNaicsTitle={n?.title ?? mapping.naicsCode}
               allNaics={allNaics}
-              defaultShowHistory={revised === "1"}
             />
           ))}
         </div>
