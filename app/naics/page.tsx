@@ -59,7 +59,16 @@ export default async function NAICSPage({ searchParams }: Props) {
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold text-gray-900">NAICS 2022 Codes</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-gray-900">NAICS 2022 Codes</h1>
+            <a
+              href="/api/export/naics"
+              download="naics-2022-codes.csv"
+              className="text-sm bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-50 hover:border-gray-400 font-medium"
+            >
+              Export CSV
+            </a>
+          </div>
           <form className="flex gap-2">
             <input
               name="q"
