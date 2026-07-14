@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -183,63 +183,61 @@ const OUTCOME_META: Record<Outcome, { label: string; color: string; bar: string;
 export default function AnalysisDashboard() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
-  const [filename, setFilename] = useState("");
+  const [filename, setFilename] = useState("IndustryBeforeAfter.csv");
+  const [loading, setLoading] = useState(true);
+  const [showUpload, setShowUpload] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  function processFile(file: File) {
-    if (!file.name.endsWith(".csv")) { setError("Please upload a CSV file."); return; }
-    setError("");
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const text = e.target?.result as string;
+  // Auto-load bundled dataset on mount
+  useEffect(() => {
+    fetch("/analysis-data.csv")
+      .then(r => r.text())
+      .then(text => {
         const [, ...data] = parseCSV(text);
-        if (data.length === 0) { setError("No data rows found."); return; }
         const analyzed = analyze(data);
         setRows(analyzed);
         setStats(computeStats(analyzed));
-        setFilename(file.name);
-      } catch {
-        setError("Failed to parse CSV. Make sure it matches the expected format.");
-      }
-    };
-    reader.readAsText(file);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  function processText(text: string, name: string) {
+    try {
+      const [, ...data] = parseCSV(text);
+      if (data.length === 0) { setError("No data rows found."); return; }
+      const analyzed = analyze(data);
+      setRows(analyzed);
+      setStats(computeStats(analyzed));
+      setFilename(name);
+      setShowUpload(false);
+      setError("");
+    } catch {
+      setError("Failed to parse CSV. Make sure it matches the expected format.");
+    }
   }
 
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (file) processFile(file);
+    if (!file) return;
+    if (!file.name.endsWith(".csv")) { setError("Please upload a CSV file."); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => processText(ev.target?.result as string, file.name);
+    reader.readAsText(file);
   }
 
   function onDrop(e: React.DragEvent) {
     e.preventDefault(); setDragging(false);
     const file = e.dataTransfer.files?.[0];
-    if (file) processFile(file);
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => processText(ev.target?.result as string, file.name);
+    reader.readAsText(file);
   }
 
-  if (!rows || !stats) {
-    return (
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Industry Reclassification Analysis</h1>
-        <p className="text-gray-500 mb-8 text-sm">Upload a CSV with columns: Entity_ID, EntitySize, NAICS_before, Industry_before, NAICS_after, Industry_After</p>
-
-        <div
-          className={`border-2 border-dashed rounded-xl p-16 text-center cursor-pointer transition-colors ${dragging ? "border-blue-400 bg-blue-50" : "border-gray-300 bg-white hover:border-blue-400 hover:bg-blue-50"}`}
-          onClick={() => inputRef.current?.click()}
-          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={onDrop}
-        >
-          <div className="text-4xl mb-3">📂</div>
-          <p className="text-gray-700 font-medium">Drop your CSV here or click to browse</p>
-          <p className="text-gray-400 text-sm mt-1">Processed entirely in your browser — nothing is uploaded</p>
-          {error && <p className="text-red-600 text-sm mt-3">{error}</p>}
-          <input ref={inputRef} type="file" accept=".csv" className="hidden" onChange={onFileChange} />
-        </div>
-      </div>
-    );
+  if (loading) {
+    return <div className="flex items-center justify-center py-32 text-gray-400 text-sm">Loading analysis…</div>;
   }
 
   const outcomes: Outcome[] = ["deepened", "unchanged", "refined", "sector_shift", "less_specific"];
@@ -254,19 +252,35 @@ export default function AnalysisDashboard() {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => { setRows(null); setStats(null); setFilename(""); }}
+            onClick={() => { setShowUpload(v => !v); setError(""); }}
             className="text-sm border border-gray-300 text-gray-600 px-4 py-1.5 rounded hover:bg-gray-50"
           >
-            Upload new file
+            {showUpload ? "Cancel" : "Load new file"}
           </button>
           <button
-            onClick={() => downloadAnnotated(rows, filename)}
+            onClick={() => rows && downloadAnnotated(rows, filename)}
             className="text-sm bg-blue-600 text-white px-4 py-1.5 rounded hover:bg-blue-700 font-medium"
           >
             Download annotated CSV
           </button>
         </div>
       </div>
+
+      {/* Inline upload panel */}
+      {showUpload && (
+        <div
+          className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer mb-6 transition-colors ${dragging ? "border-blue-400 bg-blue-50" : "border-gray-300 bg-white hover:border-blue-400 hover:bg-blue-50"}`}
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={onDrop}
+        >
+          <p className="text-gray-700 font-medium">Drop a new CSV here or click to browse</p>
+          <p className="text-gray-400 text-sm mt-1">Must have columns: Entity_ID, EntitySize, NAICS_before, Industry_before, NAICS_after, Industry_After</p>
+          {error && <p className="text-red-600 text-sm mt-2">{error}</p>}
+          <input ref={inputRef} type="file" accept=".csv" className="hidden" onChange={onFileChange} />
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-4 gap-3 mb-6">
