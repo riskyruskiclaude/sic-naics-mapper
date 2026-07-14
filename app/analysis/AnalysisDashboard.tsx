@@ -71,7 +71,7 @@ function getSizeBand(desc: string): string {
 function analyze(rows: string[][], equivalents: Record<string, string> = {}): Row[] {
   return rows.map((f) => {
     const nb = f[2]?.trim() ?? "";
-    // Normalize "after" code: if it's a 5-digit with an equivalent 6-digit, treat both as the same
+    // Normalize "after" code: if it's a 6-digit whose 5-digit parent is identical, collapse to 5-digit
     const naRaw = f[4]?.trim() ?? "";
     const na = equivalents[naRaw] ?? naRaw;
     const indBefore = f[3]?.trim() ?? "";
