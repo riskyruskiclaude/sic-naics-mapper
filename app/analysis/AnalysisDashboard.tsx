@@ -72,14 +72,25 @@ function getSizeBand(desc: string): string {
   return desc.match(/^[\d\+\-\s]+/)?.[0]?.trim() ?? "";
 }
 
-function analyze(rows: string[][], equivalents: Record<string, string> = {}): Row[] {
+// Detect column indices from header row (handles optional State column)
+function getColIndices(header: string[]) {
+  const h = header.map(c => c.trim().toLowerCase().replace(/\r$/, ""));
+  const nb  = h.indexOf("naics_before");
+  const ib  = h.indexOf("industry_before");
+  const na  = h.indexOf("naics_after");
+  const ia  = h.findIndex(c => c.startsWith("industry_after"));
+  // fallback to positional defaults if headers not found
+  return { nb: nb >= 0 ? nb : 2, ib: ib >= 0 ? ib : 3, na: na >= 0 ? na : 4, ia: ia >= 0 ? ia : 5 };
+}
+
+function analyze(rows: string[][], equivalents: Record<string, string> = {}, cols = { nb:2, ib:3, na:4, ia:5 }): Row[] {
   return rows.map((f) => {
-    const nb = f[2]?.trim() ?? "";
+    const nb = f[cols.nb]?.trim() ?? "";
     // Normalize "after" code: if it's a 6-digit whose 5-digit parent is identical, collapse to 5-digit
-    const naRaw = f[4]?.trim() ?? "";
+    const naRaw = f[cols.na]?.trim() ?? "";
     const na = equivalents[naRaw] ?? naRaw;
-    const indBefore = f[3]?.trim() ?? "";
-    const indAfter = f[5]?.trim() ?? "";
+    const indBefore = f[cols.ib]?.trim() ?? "";
+    const indAfter = f[cols.ia]?.trim() ?? "";
 
     let outcome: Outcome;
     if (nb === na) outcome = "unchanged";
@@ -184,40 +195,54 @@ const OUTCOME_META: Record<Outcome, { label: string; color: string; bar: string;
   less_specific: { label: "Less specific", color: "text-red-700",    bar: "bg-red-500",    desc: "Code became shorter/broader — regression, review required" },
 };
 
+type Tab = "national" | "state";
+
+interface TabData { rows: Row[]; stats: Stats; filename: string; }
+
 // ── Main component ──────────────────────────────────────────────────────────
 
 export default function AnalysisDashboard() {
-  const [rows, setRows] = useState<Row[] | null>(null);
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [filename, setFilename] = useState("IndustryBeforeAfter.csv");
+  const [activeTab, setActiveTab] = useState<Tab>("national");
+  const [tabData, setTabData] = useState<Record<Tab, TabData | null>>({ national: null, state: null });
   const [loading, setLoading] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-load bundled dataset + NAICS equivalents on mount
+  const current = tabData[activeTab];
+  const rows = current?.rows ?? null;
+  const stats = current?.stats ?? null;
+  const filename = current?.filename ?? "";
+
+  function loadText(text: string, name: string, equivalents: Record<string, string>): TabData {
+    const parsed = parseCSV(text);
+    const [header, ...data] = parsed;
+    const cols = getColIndices(header);
+    const analyzed = analyze(data, equivalents, cols);
+    return { rows: analyzed, stats: computeStats(analyzed), filename: name };
+  }
+
+  // Auto-load both bundled datasets on mount
   useEffect(() => {
-    Promise.all([
-      fetch("/analysis-data.csv").then(r => r.text()),
-      fetch("/naics-equivalents.json").then(r => r.json()),
-    ]).then(([text, equivalents]) => {
-      const [, ...data] = parseCSV(text);
-      const analyzed = analyze(data, equivalents);
-      setRows(analyzed);
-      setStats(computeStats(analyzed));
-    }).finally(() => setLoading(false));
+    fetch("/naics-equivalents.json").then(r => r.json()).then(equivalents => {
+      Promise.all([
+        fetch("/analysis-data.csv").then(r => r.text()),
+        fetch("/analysis-data-state.csv").then(r => r.text()),
+      ]).then(([national, state]) => {
+        setTabData({
+          national: loadText(national, "IndustryBeforeAfter.csv", equivalents),
+          state: loadText(state, "IndustryBeforeAfter_State.csv", equivalents),
+        });
+      }).finally(() => setLoading(false));
+    });
   }, []);
 
   function processText(text: string, name: string) {
     try {
-      const [, ...data] = parseCSV(text);
-      if (data.length === 0) { setError("No data rows found."); return; }
       fetch("/naics-equivalents.json").then(r => r.json()).then(equivalents => {
-        const analyzed = analyze(data, equivalents);
-        setRows(analyzed);
-        setStats(computeStats(analyzed));
-        setFilename(name);
+        const data = loadText(text, name, equivalents);
+        setTabData(prev => ({ ...prev, [activeTab]: data }));
         setShowUpload(false);
         setError("");
       });
@@ -248,20 +273,13 @@ export default function AnalysisDashboard() {
     return <div className="flex items-center justify-center py-32 text-gray-400 text-sm">Loading analysis…</div>;
   }
 
-  if (!rows || !stats) {
-    return <div className="flex items-center justify-center py-32 text-gray-400 text-sm">No data.</div>;
-  }
-
   const outcomes: Outcome[] = ["deepened", "unchanged", "refined", "sector_shift", "less_specific"];
 
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Industry Reclassification Analysis</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{filename} · {stats.total.toLocaleString()} entities</p>
-        </div>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold text-gray-900">Industry Reclassification Analysis</h1>
         <div className="flex gap-2">
           <button
             onClick={() => { setShowUpload(v => !v); setError(""); }}
@@ -269,14 +287,46 @@ export default function AnalysisDashboard() {
           >
             {showUpload ? "Cancel" : "Load new file"}
           </button>
-          <button
-            onClick={() => rows && downloadAnnotated(rows, filename)}
-            className="text-sm bg-blue-600 text-white px-4 py-1.5 rounded hover:bg-blue-700 font-medium"
-          >
-            Download annotated CSV
-          </button>
+          {rows && (
+            <button
+              onClick={() => downloadAnnotated(rows, filename)}
+              className="text-sm bg-blue-600 text-white px-4 py-1.5 rounded hover:bg-blue-700 font-medium"
+            >
+              Download annotated CSV
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-5 border-b border-gray-200">
+        {(["national", "state"] as Tab[]).map(tab => (
+          <button
+            key={tab}
+            onClick={() => { setActiveTab(tab); setShowUpload(false); setError(""); }}
+            className={`px-5 py-2 text-sm font-medium capitalize rounded-t border-b-2 transition-colors ${
+              activeTab === tab
+                ? "border-blue-600 text-blue-700 bg-white"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            {tab}
+            {tabData[tab] && (
+              <span className="ml-1.5 text-xs text-gray-400">
+                ({tabData[tab]!.stats.total.toLocaleString()})
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Loading state for current tab */}
+      {loading && <div className="text-center py-20 text-gray-400 text-sm">Loading…</div>}
+      {!loading && !rows && <div className="text-center py-20 text-gray-400 text-sm">No data for this tab.</div>}
+      {!loading && rows && stats && (<>
+
+      {/* Subtitle */}
+      <p className="text-sm text-gray-500 -mt-3 mb-5">{filename} · {stats.total.toLocaleString()} entities</p>
 
       {/* Inline upload panel */}
       {showUpload && (
@@ -434,6 +484,7 @@ export default function AnalysisDashboard() {
           The annotated CSV flags all sector-shifted and less-specific entities with <code className="bg-amber-100 px-1 rounded">review_flag=yes</code> and a <code className="bg-amber-100 px-1 rounded">review_reason</code> column explaining why.
         </p>
       </div>
+      </>)}
     </div>
   );
 }
