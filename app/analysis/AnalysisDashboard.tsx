@@ -71,15 +71,14 @@ function getSizeBand(desc: string): string {
 function analyze(rows: string[][], equivalents: Record<string, string> = {}): Row[] {
   return rows.map((f) => {
     const nb = f[2]?.trim() ?? "";
-    const na = f[4]?.trim() ?? "";
+    // Normalize "after" code: if it's a 5-digit with an equivalent 6-digit, treat both as the same
+    const naRaw = f[4]?.trim() ?? "";
+    const na = equivalents[naRaw] ?? naRaw;
     const indBefore = f[3]?.trim() ?? "";
     const indAfter = f[5]?.trim() ?? "";
 
-    // Treat a move from a 5-digit code to its sole same-titled 6-digit child as unchanged
-    const isEquivalentStep = equivalents[nb] === na;
-
     let outcome: Outcome;
-    if (nb === na || isEquivalentStep) outcome = "unchanged";
+    if (nb === na) outcome = "unchanged";
     else if (na.startsWith(nb)) outcome = "deepened";
     else if (nb.slice(0, 2) === na.slice(0, 2)) outcome = "refined";
     else if (na.length < nb.length) outcome = "less_specific";
@@ -175,7 +174,7 @@ function Bar({ value, total, color }: { value: number; total: number; color: str
 
 const OUTCOME_META: Record<Outcome, { label: string; color: string; bar: string; desc: string }> = {
   deepened:      { label: "Deepened",      color: "text-green-700",  bar: "bg-green-500",  desc: "Got a more specific code within the same hierarchy — primary goal achieved" },
-  unchanged:     { label: "Unchanged",     color: "text-gray-600",   bar: "bg-gray-400",   desc: "Same industry — includes trivial 5→6 digit expansions where both codes have the same title" },
+  unchanged:     { label: "Unchanged",     color: "text-gray-600",   bar: "bg-gray-400",   desc: "Same industry — 5-digit and equivalent 6-digit codes with the same title are treated as identical" },
   refined:       { label: "Refined",       color: "text-blue-700",   bar: "bg-blue-400",   desc: "Different code within the same 2-digit sector — minor reclassification" },
   sector_shift:  { label: "Sector shift",  color: "text-orange-700", bar: "bg-orange-400", desc: "Moved to a different 2-digit sector — review recommended" },
   less_specific: { label: "Less specific", color: "text-red-700",    bar: "bg-red-500",    desc: "Code became shorter/broader — regression, review required" },
