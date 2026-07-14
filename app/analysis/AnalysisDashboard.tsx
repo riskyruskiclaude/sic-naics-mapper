@@ -240,6 +240,10 @@ export default function AnalysisDashboard() {
     return <div className="flex items-center justify-center py-32 text-gray-400 text-sm">Loading analysis…</div>;
   }
 
+  if (!rows || !stats) {
+    return <div className="flex items-center justify-center py-32 text-gray-400 text-sm">No data.</div>;
+  }
+
   const outcomes: Outcome[] = ["deepened", "unchanged", "refined", "sector_shift", "less_specific"];
 
   return (
