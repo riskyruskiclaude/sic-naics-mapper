@@ -68,15 +68,18 @@ function getSizeBand(desc: string): string {
   return desc.match(/^[\d\+\-\s]+/)?.[0]?.trim() ?? "";
 }
 
-function analyze(rows: string[][]): Row[] {
+function analyze(rows: string[][], equivalents: Record<string, string> = {}): Row[] {
   return rows.map((f) => {
     const nb = f[2]?.trim() ?? "";
     const na = f[4]?.trim() ?? "";
     const indBefore = f[3]?.trim() ?? "";
     const indAfter = f[5]?.trim() ?? "";
 
+    // Treat a move from a 5-digit code to its sole same-titled 6-digit child as unchanged
+    const isEquivalentStep = equivalents[nb] === na;
+
     let outcome: Outcome;
-    if (nb === na) outcome = "unchanged";
+    if (nb === na || isEquivalentStep) outcome = "unchanged";
     else if (na.startsWith(nb)) outcome = "deepened";
     else if (nb.slice(0, 2) === na.slice(0, 2)) outcome = "refined";
     else if (na.length < nb.length) outcome = "less_specific";
@@ -172,7 +175,7 @@ function Bar({ value, total, color }: { value: number; total: number; color: str
 
 const OUTCOME_META: Record<Outcome, { label: string; color: string; bar: string; desc: string }> = {
   deepened:      { label: "Deepened",      color: "text-green-700",  bar: "bg-green-500",  desc: "Got a more specific code within the same hierarchy — primary goal achieved" },
-  unchanged:     { label: "Unchanged",     color: "text-gray-600",   bar: "bg-gray-400",   desc: "Same code as before — no better match was found" },
+  unchanged:     { label: "Unchanged",     color: "text-gray-600",   bar: "bg-gray-400",   desc: "Same industry — includes trivial 5→6 digit expansions where both codes have the same title" },
   refined:       { label: "Refined",       color: "text-blue-700",   bar: "bg-blue-400",   desc: "Different code within the same 2-digit sector — minor reclassification" },
   sector_shift:  { label: "Sector shift",  color: "text-orange-700", bar: "bg-orange-400", desc: "Moved to a different 2-digit sector — review recommended" },
   less_specific: { label: "Less specific", color: "text-red-700",    bar: "bg-red-500",    desc: "Code became shorter/broader — regression, review required" },
@@ -190,29 +193,31 @@ export default function AnalysisDashboard() {
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-load bundled dataset on mount
+  // Auto-load bundled dataset + NAICS equivalents on mount
   useEffect(() => {
-    fetch("/analysis-data.csv")
-      .then(r => r.text())
-      .then(text => {
-        const [, ...data] = parseCSV(text);
-        const analyzed = analyze(data);
-        setRows(analyzed);
-        setStats(computeStats(analyzed));
-      })
-      .finally(() => setLoading(false));
+    Promise.all([
+      fetch("/analysis-data.csv").then(r => r.text()),
+      fetch("/naics-equivalents.json").then(r => r.json()),
+    ]).then(([text, equivalents]) => {
+      const [, ...data] = parseCSV(text);
+      const analyzed = analyze(data, equivalents);
+      setRows(analyzed);
+      setStats(computeStats(analyzed));
+    }).finally(() => setLoading(false));
   }, []);
 
   function processText(text: string, name: string) {
     try {
       const [, ...data] = parseCSV(text);
       if (data.length === 0) { setError("No data rows found."); return; }
-      const analyzed = analyze(data);
-      setRows(analyzed);
-      setStats(computeStats(analyzed));
-      setFilename(name);
-      setShowUpload(false);
-      setError("");
+      fetch("/naics-equivalents.json").then(r => r.json()).then(equivalents => {
+        const analyzed = analyze(data, equivalents);
+        setRows(analyzed);
+        setStats(computeStats(analyzed));
+        setFilename(name);
+        setShowUpload(false);
+        setError("");
+      });
     } catch {
       setError("Failed to parse CSV. Make sure it matches the expected format.");
     }
