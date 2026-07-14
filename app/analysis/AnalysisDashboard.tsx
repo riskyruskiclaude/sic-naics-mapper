@@ -37,14 +37,18 @@ interface Stats {
 // ── CSV parsing ─────────────────────────────────────────────────────────────
 
 function parseCSV(text: string): string[][] {
+  const lines = text.split("\n").filter(l => l.trim());
+  // Detect delimiter: if first data row has tabs, use tab; otherwise comma
+  const firstData = lines[1] ?? lines[0] ?? "";
+  const delim = firstData.includes("\t") ? "\t" : ",";
+
   const rows: string[][] = [];
-  for (const line of text.split("\n")) {
-    if (!line.trim()) continue;
+  for (const line of lines) {
     const fields: string[] = [];
     let inQuote = false, cur = "";
     for (const c of line) {
       if (c === '"') inQuote = !inQuote;
-      else if (c === "," && !inQuote) { fields.push(cur.trim()); cur = ""; }
+      else if (c === delim && !inQuote) { fields.push(cur.trim()); cur = ""; }
       else cur += c;
     }
     fields.push(cur.trim().replace(/\r$/, ""));
